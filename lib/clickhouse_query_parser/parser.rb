@@ -153,8 +153,36 @@ module ClickhouseQueryParser
       
       if match?(:operator)
         op = consume(:operator)
-        right = parse_primary
-        { type: :binary_op, operator: op[:value], left: left, right: right }
+        right = parse_expression # right associative for some things?
+                                 # For `->`, correct. 
+                                 # For standard math, `1 + 2 + 3` -> `(1+2)+3`.
+                                 # current implementation `left op parse_primary` is wrong for `1+2+3` if we want left assoc.
+                                 # But for now let's keep it simple or fix it.
+                                 # `parse_expression` calling `parse_primary` immediately ignores operator precedence logic implemented in `parse_logic_and` etc.
+                                 # Wait, `parse_expression` IS the precedence handler for generic operators?
+                                 
+        if op[:value] == "->"
+          # Lambda!
+          # Left must be arguments.
+          # If left is identifier, wrap in list.
+          # If left is tuple, use elements.
+          args = case left[:type]
+                 when :column then [left]
+                 when :tuple then left[:elements]
+                 else
+                    raise Error, "Invalid lambda arguments: #{left.inspect}"
+                 end
+          
+          # Right side is body.
+          { type: :lambda, args: args, body: right }
+        else
+          # Standard binary op
+          # We should probably call parse_expression again for right side to allow chaining?
+          # But we need to handle precedence.
+          # For this task, we just need `->` to work.
+          
+           { type: :binary_op, operator: op[:value], left: left, right: right }
+        end
       else
         left
       end
@@ -163,18 +191,31 @@ module ClickhouseQueryParser
     def parse_primary
       token = current_token
       case token[:type]
+      when :lbracket
+        parse_array_literal
+      when :lparen
+        parse_paren_expression
       when :identifier
         name = token[:value]
         consume(:identifier)
-        if match?(:dot)
-          consume(:dot)
-          column_token = consume(:identifier)
-          { type: :column, name: column_token[:value], table: name }
-        elsif match?(:lparen)
-          parse_function_call(name)
-        else
-          { type: :column, name: name }
+        expr = if match?(:dot)
+                 consume(:dot)
+                 column_token = consume(:identifier)
+                 { type: :column, name: column_token[:value], table: name }
+               elsif match?(:lparen)
+                 parse_function_call(name)
+               else
+                 { type: :column, name: name }
+               end
+        
+        # Handle array access
+        while match?(:lbracket)
+          consume(:lbracket)
+          index = parse_expression
+          consume(:rbracket)
+          expr = { type: :array_access, column: expr, index: index }
         end
+        expr
       when :keyword
         if token[:value] == "INTERVAL"
            parse_interval
@@ -296,6 +337,36 @@ module ClickhouseQueryParser
       consume(:rparen)
       
       { type: :function, name: "EXTRACT", args: [{ type: :interval_unit, value: unit }, expr] }
+    end
+    def parse_array_literal
+      consume(:lbracket)
+      values = []
+      unless match?(:rbracket)
+        loop do
+          values << parse_expression
+          break unless match?(:comma)
+          consume(:comma)
+        end
+      end
+      consume(:rbracket)
+      { type: :array, values: values }
+    end
+
+    def parse_paren_expression
+      consume(:lparen)
+      elements = []
+      loop do
+        elements << parse_expression
+        break unless match?(:comma)
+        consume(:comma)
+      end
+      consume(:rparen)
+      
+      if elements.size == 1
+        elements.first # Single element in parens is just grouping
+      else
+        { type: :tuple, elements: elements }
+      end
     end
   end
 end

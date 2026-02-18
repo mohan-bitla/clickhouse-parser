@@ -97,6 +97,19 @@ module ClickhouseQueryParser
         "INTERVAL #{expr[:value]} #{expr[:unit]}"
       when :interval_unit
         expr[:value]
+      when :array
+        "[#{expr[:values].map { |v| build_expression(v) }.join(', ')}]"
+      when :array_access
+        "#{build_expression(expr[:column])}[#{build_expression(expr[:index])}]"
+      when :tuple
+        "(#{expr[:elements].map { |e| build_expression(e) }.join(', ')})"
+      when :lambda
+        args = if expr[:args].size == 1
+                 build_expression(expr[:args].first)
+               else
+                 "(#{expr[:args].map { |a| build_expression(a) }.join(', ')})"
+               end
+        "#{args} -> #{build_expression(expr[:body])}"
       else
         raise Error, "Unknown expression type: #{expr[:type]}"
       end

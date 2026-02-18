@@ -10,11 +10,13 @@ module ClickhouseQueryParser
       (?<keyword>\b(SELECT|FROM|WHERE|AND|OR|GROUP|BY|ORDER|LIMIT|INSERT|INTO|VALUES|CREATE|TABLE|PREWHERE|HAVING|FORMAT|ASC|DESC|LEFT|RIGHT|INNER|OUTER|JOIN|ON|UNION|ALL|INTERVAL|EXTRACT|YEAR|MONTH|DAY|HOUR|MINUTE|SECOND|WEEK|QUARTER)\b)|
       (?<dot>\.)|
       (?<identifier>[a-zA-Z_]\w*|"[^"]*")|
-      (?<operator>!=|>=|<=|<>|=|>|<|\+|-|\/|%)|
+      (?<operator>->|!=|>=|<=|<>|=|>|<|\+|-|\/|%)|
       (?<comma>,)|
       (?<star>\*)|
       (?<lparen>\()|
       (?<rparen>\))|
+      (?<lbracket>\[)|
+      (?<rbracket>\])|
       (?<whitespace>\s+)
     /ix
 
@@ -55,6 +57,10 @@ module ClickhouseQueryParser
             tokens << { type: :lparen, value: "(" }
           elsif scanner[:rparen]
             tokens << { type: :rparen, value: ")" }
+          elsif scanner[:lbracket]
+            tokens << { type: :lbracket, value: "[" }
+          elsif scanner[:rbracket]
+            tokens << { type: :rbracket, value: "]" }
           end
         else
           raise ClickhouseQueryParser::Error, "Unexpected character at position #{scanner.pos}: #{scanner.string[scanner.pos]}"
