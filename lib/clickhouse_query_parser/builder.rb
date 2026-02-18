@@ -87,8 +87,16 @@ module ClickhouseQueryParser
       when :binary_op
         "#{build_expression(expr[:left])} #{expr[:operator]} #{build_expression(expr[:right])}"
       when :function
-        args = expr[:args].map { |a| build_expression(a) }.join(", ")
-        "#{expr[:name]}(#{args})"
+        if expr[:name].upcase == "EXTRACT"
+          "EXTRACT(#{build_expression(expr[:args][0])} FROM #{build_expression(expr[:args][1])})"
+        else
+          args = expr[:args].map { |a| build_expression(a) }.join(", ")
+          "#{expr[:name]}(#{args})"
+        end
+      when :interval
+        "INTERVAL #{expr[:value]} #{expr[:unit]}"
+      when :interval_unit
+        expr[:value]
       else
         raise Error, "Unknown expression type: #{expr[:type]}"
       end

@@ -175,10 +175,16 @@ module ClickhouseQueryParser
         else
           { type: :column, name: name }
         end
-      when :keyword # Handle functions that might be lexed as keywords (like count if it were a keyword, but here it's identifier usually)
-         # In our tokenizer, standard functions are just identifiers unless explicitly in keywords list.
-         # But if we want to be safe, we can handle it. For now, assume functions are identifiers.
-         raise Error, "Unexpected keyword in expression: #{token[:value]}"
+      when :keyword
+        if token[:value] == "INTERVAL"
+           parse_interval
+        elsif token[:value] == "EXTRACT"
+           parse_extract
+        else
+           # In our tokenizer, standard functions are just identifiers unless explicitly in keywords list.
+           # But if we want to be safe, we can handle it. For now, assume functions are identifiers.
+           raise Error, "Unexpected keyword in expression: #{token[:value]}"
+        end
       when :star
         consume(:star)
         { type: :star }
@@ -252,6 +258,44 @@ module ClickhouseQueryParser
        else
           raise Error, "Expected literal, got #{token.inspect}"
        end
+    end
+
+    def parse_interval
+      consume(:keyword, "INTERVAL")
+      value_token = current_token
+      value = if value_token[:type] == :string
+                consume(:string)[:value]
+              elsif value_token[:type] == :number
+                consume(:number)[:value]
+              else
+                 raise Error, "Expected interval value, got #{value_token.inspect}"
+              end
+      
+      if match?(:keyword)
+         unit = consume(:keyword)[:value]
+         { type: :interval, value: value, unit: unit }
+      else
+         raise Error, "Expected interval unit, got #{current_token.inspect}"
+      end
+    end
+
+    def parse_extract
+      consume(:keyword, "EXTRACT")
+      consume(:lparen)
+      
+      unit = if match?(:keyword)
+               consume(:keyword)[:value]
+             elsif match?(:identifier)
+               consume(:identifier)[:value]
+             else
+               raise Error, "Expected EXTRACT unit, got #{current_token.inspect}"
+             end
+
+      consume(:keyword, "FROM")
+      expr = parse_expression
+      consume(:rparen)
+      
+      { type: :function, name: "EXTRACT", args: [{ type: :interval_unit, value: unit }, expr] }
     end
   end
 end

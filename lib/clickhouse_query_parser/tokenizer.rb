@@ -7,10 +7,10 @@ module ClickhouseQueryParser
       (?<string>'[^']*')|
       (?<number>\d+(\.\d+)?)|
       (?<symbol>:[a-zA-Z_]\w*)|
-      (?<keyword>\b(SELECT|FROM|WHERE|AND|OR|GROUP|BY|ORDER|LIMIT|INSERT|INTO|VALUES|CREATE|TABLE|PREWHERE|HAVING|FORMAT|ASC|DESC|LEFT|RIGHT|INNER|OUTER|JOIN|ON|UNION|ALL)\b)|
+      (?<keyword>\b(SELECT|FROM|WHERE|AND|OR|GROUP|BY|ORDER|LIMIT|INSERT|INTO|VALUES|CREATE|TABLE|PREWHERE|HAVING|FORMAT|ASC|DESC|LEFT|RIGHT|INNER|OUTER|JOIN|ON|UNION|ALL|INTERVAL|EXTRACT|YEAR|MONTH|DAY|HOUR|MINUTE|SECOND|WEEK|QUARTER)\b)|
       (?<dot>\.)|
       (?<identifier>[a-zA-Z_]\w*|"[^"]*")|
-      (?<operator>!=|>=|<=|<>|=|>|<)|
+      (?<operator>!=|>=|<=|<>|=|>|<|\+|-|\/|%)|
       (?<comma>,)|
       (?<star>\*)|
       (?<lparen>\()|
@@ -57,7 +57,7 @@ module ClickhouseQueryParser
             tokens << { type: :rparen, value: ")" }
           end
         else
-          raise Error, "Unexpected character at position #{scanner.pos}: #{scanner.string[scanner.pos]}"
+          raise ClickhouseQueryParser::Error, "Unexpected character at position #{scanner.pos}: #{scanner.string[scanner.pos]}"
         end
       end
 
